@@ -8,6 +8,9 @@ import Tracer from 'tracer';
 import morgan from 'morgan';
 import peerConfig from './peerConfig';
 import { ICEServer } from './ICEServer';
+import { PublicLobby } from './interfaces/publicLobby';
+import { GameState } from './interfaces/gameState';
+import { lobbyInfo } from './interfaces/lobbyInfo';
 let TurnServer = require('node-turn');
 
 const httpsEnabled = !!process.env.HTTPS;
@@ -185,6 +188,10 @@ io.on('connection', (socket: socketIO.Socket) => {
 			allLobbies.set(c, { code: c, hostId: isHost ? clientId : -1, publicLobbyId: -1, connectedCount: 1 });
 		} else {
 			allLobbies.get(c).connectedCount++;
+			if (isHost) {
+				allLobbies.get(c).hostId = clientId;
+				socket.to(code).broadcast.emit('setHost', clientId);
+			}
 			socket.emit('setHost', allLobbies.get(c).hostId);
 		}
 
@@ -196,9 +203,6 @@ io.on('connection', (socket: socketIO.Socket) => {
 			clientId: clientId,
 		});
 		socket.emit('setClients', otherClients);
-		if (isHost) {
-			socket.to(code).broadcast.emit('setHost', clientId);
-		}
 	});
 
 	socket.on('setHost', (c: string, clientId: number) => {
@@ -265,33 +269,33 @@ io.on('connection', (socket: socketIO.Socket) => {
 		callbackFn(1, 'Lobby not found :C');
 	});
 
-	socket.on('lobby', (c: string, lobbyInfo: PublicLobby) => {
+	socket.on('lobby', (c: string, publicLobby: PublicLobby) => {
 		if (code != c) {
 			logger.error(`Got request to host lobby while not in it %s`, c, code);
 			return;
 		}
-		if (!lobbyInfo.isPublic && !lobbyInfo.isPublic2) {
+		if (!publicLobby.isPublic && !publicLobby.isPublic2) {
 			removePublicLobby(c);
 		} else {
 			const publobby = publicLobbies.has(c) ? publicLobbies.get(c) : undefined;
 			const id = publobby ? publobby.id : lobbyCount++;
 			const stateTime =
 				publobby &&
-				((publobby.gameState === GameState.LOBBY && lobbyInfo.gameState === GameState.LOBBY) ||
-					(publobby.gameState !== GameState.LOBBY && lobbyInfo.gameState !== GameState.LOBBY))
+				((publobby.gameState === GameState.LOBBY && publicLobby.gameState === GameState.LOBBY) ||
+					(publobby.gameState !== GameState.LOBBY && publicLobby.gameState !== GameState.LOBBY))
 					? publobby.stateTime
 					: Date.now();
 			let lobby: PublicLobby = {
 				id,
-				title: lobbyInfo.title?.substring(0, 20) ?? 'ERROR',
-				host: lobbyInfo.host?.substring(0, 10) ?? '',
-				current_players: lobbyInfo.current_players ?? 0,
-				max_players: lobbyInfo.max_players ?? 0,
-				language: lobbyInfo.language?.substring(0, 5) ?? '',
-				mods: lobbyInfo.mods?.substring(0, 20)?.toUpperCase() ?? '',
-				isPublic: lobbyInfo.isPublic || lobbyInfo.isPublic2,
-				server: lobbyInfo.server,
-				gameState: lobbyInfo.gameState,
+				title: publicLobby.title?.substring(0, 20) ?? 'ERROR',
+				host: publicLobby.host?.substring(0, 10) ?? '',
+				current_players: publicLobby.current_players ?? 0,
+				max_players: publicLobby.max_players ?? 0,
+				language: publicLobby.language?.substring(0, 5) ?? '',
+				mods: publicLobby.mods?.substring(0, 20)?.toUpperCase() ?? '',
+				isPublic: publicLobby.isPublic || publicLobby.isPublic2,
+				server: publicLobby.server,
+				gameState: publicLobby.gameState,
 				stateTime,
 			};
 			lobbyCodes.set(id, c);

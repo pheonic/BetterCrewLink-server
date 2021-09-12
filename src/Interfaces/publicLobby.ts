@@ -1,4 +1,6 @@
-interface PublicLobby {
+import { GameState } from "./gameState";
+
+export interface PublicLobby {
 	id: number;
 	title: string;
 	host: string;
